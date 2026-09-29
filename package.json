@@ -1,5 +1,5 @@
 {
-  "name": "workspace",
+  "name": "construmarketcr-saas",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
@@ -10,12 +10,12 @@
     "test:pilot-browser": "pnpm --filter @workspace/construmarket-cr run test:pilot-browser",
     "validate:publish": "pnpm run typecheck && PORT=4173 BASE_PATH=/ pnpm --filter @workspace/construmarket-cr run build && pnpm run test:pilot-browser",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "db:migrate": "sh -c 'set -a; [ -f .env ] && . ./.env; set +a; node ./scripts/migrate.mjs'",
+    "codegen": "pnpm --filter @workspace/api-spec run codegen",
+    "test": "pnpm --filter @workspace/api-server run test"
   },
   "private": true,
-  "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
-  },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "prettier": "^3.9.6",

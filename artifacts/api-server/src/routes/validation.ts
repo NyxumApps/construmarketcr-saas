@@ -1,7 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { pipeline } from "stream/promises";
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { Router, type IRouter } from "express";
 import sharp from "sharp";
 import { and, count, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import {
@@ -46,11 +45,15 @@ import {
   UpsertProfessionalProfileBody,
   UpsertProfessionalProfileResponse,
 } from "@workspace/api-zod";
+import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import {
-  ObjectNotFoundError,
-  ObjectStorageService,
-  objectOwnerSegment,
-} from "../lib/objectStorage";
+  requireAccount,
+  requireAdmin,
+  type Account,
+  type AuthenticatedRequest,
+} from "../lib/account";
+import { HttpError, sendError, validationError } from "../lib/httpErrors";
+import { trustedRequestOrigin } from "../lib/origins";
 import {
   imagePaths,
   reconcileRemovedPlanImages,
@@ -101,9 +104,6 @@ function canIssueUpload(clerkUserId: string): boolean {
   return true;
 }
 
-type Account = typeof usersTable.$inferSelect;
-type AuthenticatedRequest = Request & { account?: Account };
-
 function slugify(value: string): string {
   return value
     .normalize("NFD")
@@ -141,6 +141,7 @@ function objectUrl(path: string): string {
 }
 
 async function authorizeAndPublishImages(
+  tx: DbTransaction,
   images: PlanImageInput[] | undefined,
   account: Account,
 ): Promise<void> {
@@ -149,14 +150,10 @@ async function authorizeAndPublishImages(
   if (new Set(paths).size !== paths.length) {
     throw new Error("Cada variante de imagen debe ser única");
   }
-  const ownerPrefix = `/objects/plan-images/${objectOwnerSegment(account.clerkUserId)}/`;
   for (const [index, path] of paths.entries()) {
-    const acl = await objectStorage.getAcl(path);
+    const acl = await objectStorage.getAcl(path, tx);
     if (account.role !== "admin") {
-      if (acl && acl.owner !== account.clerkUserId) {
-        throw new Error("No tiene permiso para usar una de estas imágenes");
-      }
-      if (!acl && !path.startsWith(ownerPrefix)) {
+      if (acl.owner !== account.clerkUserId) {
         throw new Error("No tiene permiso para usar una de estas imágenes");
       }
     }
@@ -176,9 +173,9 @@ async function authorizeAndPublishImages(
       throw new Error("La miniatura supera 640 píxeles");
     }
     await objectStorage.setAcl(path, {
-      owner: acl?.owner ?? account.clerkUserId,
+      owner: acl.owner,
       visibility: variant === 0 ? "private" : "public",
-    });
+    }, tx);
   }
 }
 
@@ -215,88 +212,10 @@ async function claimPendingImages(
   }
 }
 
-async function ensureAccount(req: Request): Promise<Account | null> {
-  const testUserId =
-    process.env.NODE_ENV === "test" ? req.header("x-test-clerk-user-id") : undefined;
-  const isSynthetic = Boolean(testUserId);
-  const auth = testUserId ? null : getAuth(req);
-  const claimUserId = auth?.sessionClaims?.userId;
-  const clerkUserId =
-    testUserId ??
-    (typeof claimUserId === "string" ? claimUserId : auth?.userId);
-  if (!clerkUserId) return null;
-  const configuredAdminIds = new Set(
-    (process.env.ADMIN_CLERK_USER_IDS ?? "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
-  );
-  const isConfiguredAdmin = configuredAdminIds.has(clerkUserId);
-
-  const [existing] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkUserId, clerkUserId));
-  if (existing) {
-    const expectedRole = isConfiguredAdmin ? "admin" : existing.role;
-    if (expectedRole !== existing.role || isSynthetic !== existing.isSynthetic) {
-      const [updated] = await db
-        .update(usersTable)
-        .set({ role: expectedRole, isSynthetic })
-        .where(eq(usersTable.id, existing.id))
-        .returning();
-      return updated ?? existing;
-    }
-    return existing;
-  }
-
-  const [created] = await db
-    .insert(usersTable)
-    .values({
-      clerkUserId,
-      role: isConfiguredAdmin ? "admin" : "buyer",
-      isSynthetic,
-    })
-    .onConflictDoNothing({ target: usersTable.clerkUserId })
-    .returning();
-  if (created) return created;
-  const [concurrentAccount] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkUserId, clerkUserId));
-  return concurrentAccount ?? null;
-}
-
-async function requireAccount(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const account = await ensureAccount(req);
-  if (!account) {
-    res.status(401).json({ error: "Inicie sesión para continuar" });
-    return;
-  }
-  req.account = account;
-  next();
-}
-
-function requireAdmin(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-): void {
-  if (req.account?.role !== "admin") {
-    res.status(403).json({ error: "Acceso exclusivo para administración" });
-    return;
-  }
-  next();
-}
-
 router.get("/plans", async (req, res): Promise<void> => {
   const parsed = ListPlansQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, validationError(parsed.error));
     return;
   }
 
@@ -322,7 +241,7 @@ router.get("/plans", async (req, res): Promise<void> => {
 router.get("/plans/:id", async (req, res): Promise<void> => {
   const parsed = GetPlanParams.safeParse(req.params);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, validationError(parsed.error));
     return;
   }
   const [row] = await db
@@ -331,7 +250,7 @@ router.get("/plans/:id", async (req, res): Promise<void> => {
     .innerJoin(professionalProfilesTable, eq(plansTable.professionalId, professionalProfilesTable.id))
     .where(and(eq(plansTable.id, parsed.data.id), eq(plansTable.status, "published")));
   if (!row) {
-    res.status(404).json({ error: "Plano no encontrado" });
+    sendError(res, new HttpError(404, "not_found", "Plano no encontrado"));
     return;
   }
   res.json(GetPlanResponse.parse(planDto(row.plan, row.professionalName)));
@@ -343,7 +262,7 @@ router.post(
   async (req: AuthenticatedRequest, res): Promise<void> => {
     const parsed = RequestPlanImageUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Seleccione una imagen JPG, PNG o WebP de hasta 12 MB" });
+      sendError(res, new HttpError(400, "validation_failed", "Seleccione una imagen JPG, PNG o WebP de hasta 12 MB"));
       return;
     }
     const [profile] = await db
@@ -351,11 +270,11 @@ router.post(
       .from(professionalProfilesTable)
       .where(eq(professionalProfilesTable.userId, req.account!.id));
     if (req.account!.role !== "admin" && profile?.status !== "approved") {
-      res.status(403).json({ error: "Su perfil profesional debe estar aprobado" });
+      sendError(res, new HttpError(403, "forbidden", "Su perfil profesional debe estar aprobado"));
       return;
     }
     if (!canIssueUpload(req.account!.clerkUserId)) {
-      res.status(429).json({ error: "Alcanzó el límite temporal de cargas. Espere unos minutos." });
+      sendError(res, new HttpError(429, "rate_limited", "Alcanzó el límite temporal de cargas. Espere unos minutos."));
       return;
     }
     try {
@@ -368,7 +287,7 @@ router.post(
         expiresAt: Date.now() + 15 * 60_000,
       });
       const uploadPath = `/api/storage/uploads/${token}`;
-      const requestOrigin = req.get("origin") ?? `${req.protocol}://${req.get("host")}`;
+      const requestOrigin = trustedRequestOrigin(req);
       res.json(RequestPlanImageUploadUrlResponse.parse({
         uploadUrl: new URL(uploadPath, requestOrigin).href,
         objectPath,
@@ -376,7 +295,7 @@ router.post(
       }));
     } catch (error) {
       req.log.error({ err: error }, "Unable to sign plan image upload");
-      res.status(500).json({ error: "No se pudo iniciar la carga" });
+      sendError(res, new HttpError(500, "internal_error", "No se pudo iniciar la carga"));
     }
   },
 );
@@ -388,7 +307,7 @@ router.put(
     const rawToken = req.params.token;
     const grant = verifyUploadGrant(Array.isArray(rawToken) ? rawToken[0] ?? "" : rawToken);
     if (!grant || grant.owner !== req.account!.clerkUserId) {
-      res.status(403).json({ error: "La autorización de carga no es válida" });
+      sendError(res, new HttpError(403, "forbidden", "La autorización de carga no es válida"));
       return;
     }
     const contentLength = Number(req.headers["content-length"]);
@@ -397,7 +316,7 @@ router.put(
       req.headers["content-type"] !== grant.contentType ||
       grant.size > 12 * 1024 * 1024
     ) {
-      res.status(400).json({ error: "El archivo no coincide con la carga autorizada" });
+      sendError(res, new HttpError(400, "validation_failed", "El archivo no coincide con la carga autorizada"));
       return;
     }
     try {
@@ -423,7 +342,7 @@ router.put(
     } catch (error) {
       await objectStorage.delete(grant.objectPath).catch(() => undefined);
       req.log.warn({ err: error }, "Rejected incomplete or oversized plan image upload");
-      res.status(400).json({ error: "La carga fue rechazada" });
+      sendError(res, new HttpError(400, "validation_failed", "La carga fue rechazada"));
     }
   },
 );
@@ -445,11 +364,11 @@ router.get("/storage/objects/*path", async (req, res): Promise<void> => {
       return;
     }
     if (error instanceof ObjectNotFoundError) {
-      res.status(404).json({ error: "Imagen no encontrada" });
+      sendError(res, new HttpError(404, "not_found", "Imagen no encontrada"));
       return;
     }
     req.log.error({ err: error }, "Unable to serve plan image");
-    res.status(500).json({ error: "No se pudo cargar la imagen" });
+    sendError(res, new HttpError(500, "internal_error", "No se pudo cargar la imagen"));
   }
 });
 
@@ -475,7 +394,7 @@ router.post(
   async (req: AuthenticatedRequest, res): Promise<void> => {
     const parsed = UpsertProfessionalProfileBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      sendError(res, validationError(parsed.error));
       return;
     }
     const [existing] = await db
@@ -525,12 +444,12 @@ router.post(
   async (req: AuthenticatedRequest, res): Promise<void> => {
     const parsed = CreatePlanBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      sendError(res, validationError(parsed.error));
       return;
     }
     const [profile] = await db.select().from(professionalProfilesTable).where(eq(professionalProfilesTable.userId, req.account!.id));
     if (!profile || profile.status !== "approved") {
-      res.status(403).json({ error: "Su perfil profesional debe estar aprobado" });
+      sendError(res, new HttpError(403, "forbidden", "Su perfil profesional debe estar aprobado"));
       return;
     }
     const { submitForReview, images = [], ...input } = parsed.data;
@@ -538,7 +457,7 @@ router.post(
     try {
       plan = await db.transaction(async (tx) => {
         await claimPendingImages(tx, images, req.account!);
-        await authorizeAndPublishImages(images, req.account!);
+        await authorizeAndPublishImages(tx, images, req.account!);
         const [created] = await tx
           .insert(plansTable)
           .values({
@@ -557,7 +476,7 @@ router.post(
         return created!;
       });
     } catch (error) {
-      res.status(403).json({ error: error instanceof Error ? error.message : "Imágenes inválidas" });
+      sendError(res, new HttpError(403, "forbidden", error instanceof Error ? error.message : "Imágenes inválidas"));
       return;
     }
     res.status(201).json(CreatePlanResponse.parse(planDto(plan, profile.name)));
@@ -571,12 +490,12 @@ router.patch(
     const params = UpdatePlanParams.safeParse(req.params);
     const body = UpdatePlanBody.safeParse(req.body);
     if (!params.success || !body.success) {
-      res.status(400).json({ error: "Datos inválidos" });
+      sendError(res, new HttpError(400, "validation_failed", "Datos inválidos"));
       return;
     }
     const [profile] = await db.select().from(professionalProfilesTable).where(eq(professionalProfilesTable.userId, req.account!.id));
     if (req.account!.role !== "admin" && (!profile || profile.status !== "approved")) {
-      res.status(403).json({ error: "Su perfil profesional debe estar aprobado" });
+      sendError(res, new HttpError(403, "forbidden", "Su perfil profesional debe estar aprobado"));
       return;
     }
     const { submitForReview, priceUsd, constructionMinUsd, constructionMaxUsd, images, ...input } = body.data;
@@ -608,7 +527,7 @@ router.patch(
         }
 
         await claimPendingImages(tx, images, req.account!);
-        await authorizeAndPublishImages(images, req.account!);
+        await authorizeAndPublishImages(tx, images, req.account!);
         const [updated] = await tx
           .update(plansTable)
           .set(updates)
@@ -621,7 +540,9 @@ router.patch(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Imágenes inválidas";
-      res.status(message === "Plano no encontrado" ? 404 : 403).json({ error: message });
+      sendError(res, message === "Plano no encontrado"
+        ? new HttpError(404, "not_found", message)
+        : new HttpError(403, "forbidden", message));
       return;
     }
     const [ownerProfile] = await db
@@ -635,12 +556,12 @@ router.patch(
 router.post("/plan-interests", async (req, res): Promise<void> => {
   const parsed = CreatePlanInterestBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, validationError(parsed.error));
     return;
   }
   const [plan] = await db.select().from(plansTable).where(and(eq(plansTable.id, parsed.data.planId), eq(plansTable.status, "published")));
   if (!plan) {
-    res.status(404).json({ error: "Plano no encontrado" });
+    sendError(res, new HttpError(404, "not_found", "Plano no encontrado"));
     return;
   }
   const [interest] = await db
@@ -657,7 +578,7 @@ router.post("/plan-interests", async (req, res): Promise<void> => {
 router.post("/validation-leads", async (req, res): Promise<void> => {
   const parsed = CreateValidationLeadBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendError(res, validationError(parsed.error));
     return;
   }
   const [lead] = await db.insert(validationLeadsTable).values({
@@ -720,7 +641,7 @@ router.patch("/admin/professionals/:id", requireAccount, requireAdmin, async (re
   const params = ReviewProfessionalParams.safeParse(req.params);
   const body = ReviewProfessionalBody.safeParse(req.body);
   if (!params.success || !body.success || body.data.status === "published") {
-    res.status(400).json({ error: "Revisión inválida" });
+    sendError(res, new HttpError(400, "validation_failed", "Revisión inválida"));
     return;
   }
   const [profile] = await db.update(professionalProfilesTable).set({
@@ -728,7 +649,7 @@ router.patch("/admin/professionals/:id", requireAccount, requireAdmin, async (re
     reviewNotes: body.data.notes ?? null,
   }).where(eq(professionalProfilesTable.id, params.data.id)).returning();
   if (!profile) {
-    res.status(404).json({ error: "Profesional no encontrado" });
+    sendError(res, new HttpError(404, "not_found", "Profesional no encontrado"));
     return;
   }
   res.json(ReviewProfessionalResponse.parse(profileDto(profile)));
@@ -748,7 +669,7 @@ router.patch("/admin/plans/:id", requireAccount, requireAdmin, async (req, res):
   const params = ReviewPlanParams.safeParse(req.params);
   const body = ReviewPlanBody.safeParse(req.body);
   if (!params.success || !body.success || body.data.status === "approved") {
-    res.status(400).json({ error: "Revisión inválida" });
+    sendError(res, new HttpError(400, "validation_failed", "Revisión inválida"));
     return;
   }
   const [plan] = await db.update(plansTable).set({
@@ -756,7 +677,7 @@ router.patch("/admin/plans/:id", requireAccount, requireAdmin, async (req, res):
     reviewNotes: body.data.notes ?? null,
   }).where(eq(plansTable.id, params.data.id)).returning();
   if (!plan) {
-    res.status(404).json({ error: "Plano no encontrado" });
+    sendError(res, new HttpError(404, "not_found", "Plano no encontrado"));
     return;
   }
   const [profile] = await db.select().from(professionalProfilesTable).where(eq(professionalProfilesTable.id, plan.professionalId));

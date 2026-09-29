@@ -22,3 +22,5 @@ export * from "./users";
 export * from "./professional-profiles";
 export * from "./plans";
 export * from "./plan-interests";
+export * from "./stored-objects";
+export * from "./commerce";

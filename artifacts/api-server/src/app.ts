@@ -2,14 +2,11 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
+import { isClerkConfigured } from "./lib/account";
+import { errorHandler, notFoundHandler } from "./lib/httpErrors";
 import { logger } from "./lib/logger";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
+import { isOriginAllowed } from "./lib/origins";
 
 const app: Express = express();
 
@@ -32,19 +29,26 @@ app.use(
     },
   }),
 );
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(cors({ credentials: true, origin: true }));
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => callback(null, !origin || isOriginAllowed(origin)),
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+// Sin claves de Clerk el servidor sigue atendiendo las rutas públicas;
+// las rutas con sesión responden 401 hasta que se configuren.
+if (isClerkConfigured()) {
+  app.use(clerkMiddleware());
+} else if (process.env.NODE_ENV !== "test") {
+  logger.warn("Clerk keys are not configured; signed-in routes will respond 401");
+}
 
 app.use("/api", router);
+app.use("/api", notFoundHandler);
+app.use(errorHandler);
 
 export default app;

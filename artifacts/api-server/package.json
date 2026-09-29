@@ -10,24 +10,24 @@
     "test:pilot": "pnpm run build && node ./test/pilot-regression.mjs",
     "test:pending-upload-cleanup": "NODE_PATH=./node_modules node ./test/build-pending-upload-cleanup-test.mjs",
     "bootstrap-admin": "node ./scripts/bootstrap-admin.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run test:pilot && pnpm run test:pending-upload-cleanup && pnpm run test:commerce",
+    "test:commerce": "pnpm run build && node ./test/commerce-regression.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.66",
     "@clerk/shared": "^4.31.0",
-    "@google-cloud/storage": "^8.0.1",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
-    "google-auth-library": "^11.0.2",
-    "http-proxy-middleware": "^4.2.0",
     "pg": "^8.22.0",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.4",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
