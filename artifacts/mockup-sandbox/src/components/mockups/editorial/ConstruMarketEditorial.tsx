@@ -1,0 +1,91 @@
+import { useState } from "react";
+import {
+  ArrowUpRight,
+  BedDouble,
+  Calculator,
+  ChevronDown,
+  CircleUserRound,
+  Compass,
+  House,
+  Menu,
+  Ruler,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
+
+type Finish = "Esencial" | "Confort" | "Firma";
+
+const plans = [
+  { name: "Casa Bruma", place: "Santa Teresa · Guanacaste", size: "142 m²", beds: "3", price: "$118k — $164k", tone: "sand" },
+  { name: "Patio Lento", place: "Orotina · Alajuela", size: "186 m²", beds: "4", price: "$153k — $209k", tone: "clay" },
+  { name: "Línea de Agua", place: "Turrialba · Cartago", size: "98 m²", beds: "2", price: "$83k — $121k", tone: "sage" },
+];
+
+const finishRates: Record<Finish, [number, number]> = {
+  Esencial: [720, 950],
+  Confort: [980, 1280],
+  Firma: [1340, 1760],
+};
+
+export default function ConstruMarketEditorial() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [area, setArea] = useState(150);
+  const [finish, setFinish] = useState<Finish>("Confort");
+  const [intent, setIntent] = useState<"buyer" | "professional">("buyer");
+  const [notice, setNotice] = useState("");
+  const low = area * finishRates[finish][0];
+  const high = area * finishRates[finish][1];
+  const money = (value: number) => `$${Math.round(value / 1000)}k`;
+
+  return (
+    <div className="cm-shell">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+        .cm-shell{--ink:#292521;--muted:#776f66;--paper:#f4f0e8;--cream:#fbf9f4;--line:#d9d0c2;--clay:#b85e43;--clay-dark:#8e402f;--sage:#5c6b5d;background:var(--paper);color:var(--ink);font-family:'DM Sans',sans-serif;min-height:100vh;overflow:hidden}
+        .cm-shell *{box-sizing:border-box}.cm-shell button{font:inherit;cursor:pointer}.cm-inner{max-width:1240px;margin:auto;padding:0 34px}
+        .cm-nav{height:82px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;position:relative;z-index:3}
+        .cm-logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:700;letter-spacing:-.04em;font-size:21px}.cm-logo-mark{width:31px;height:31px;background:var(--clay);display:grid;place-items:center;color:var(--cream);font-family:serif;font-size:19px}
+        .cm-links{display:flex;align-items:center;gap:34px;font-size:13px;color:var(--muted);letter-spacing:.03em}.cm-links button{border:0;background:none;color:inherit}.cm-links button:hover{color:var(--clay)}
+        .cm-nav-actions{display:flex;gap:12px;align-items:center}.cm-ghost,.cm-dark{border:1px solid var(--ink);padding:10px 17px;background:transparent;color:var(--ink);font-size:12px;letter-spacing:.06em;text-transform:uppercase}.cm-dark{background:var(--ink);color:var(--cream)}
+        .cm-mobile-toggle{display:none;border:0;background:none}.cm-hero{padding:91px 0 98px;display:grid;grid-template-columns:1.03fr .97fr;gap:72px;align-items:center}
+        .cm-kicker{display:flex;align-items:center;gap:10px;color:var(--clay);font:500 11px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.12em}.cm-kicker:before{content:'';width:32px;height:1px;background:var(--clay)}
+        .cm-hero h1{font:600 clamp(53px,6.3vw,87px)/.98 'Playfair Display',serif;letter-spacing:-.06em;margin:25px 0 25px;max-width:650px}.cm-hero h1 em{color:var(--clay);font-style:italic}.cm-hero-copy{font-size:17px;line-height:1.65;color:var(--muted);max-width:470px}.cm-hero-buttons{display:flex;gap:13px;margin-top:33px}.cm-primary{border:0;background:var(--clay);color:#fff8ef;padding:15px 22px;font-size:12px;text-transform:uppercase;letter-spacing:.09em}.cm-primary:hover{background:var(--clay-dark)}.cm-outline{border:1px solid var(--line);background:transparent;color:var(--ink);padding:15px 22px;font-size:12px;text-transform:uppercase;letter-spacing:.09em}
+        .cm-architectural{height:460px;background:#d8cbbb;position:relative;overflow:hidden}.cm-architectural:before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.18),transparent 47%),repeating-linear-gradient(90deg,transparent 0 69px,rgba(41,37,33,.12) 70px,transparent 71px)}.cm-sun{position:absolute;width:198px;height:198px;border-radius:50%;background:#c88364;right:42px;top:44px}.cm-arch-box{position:absolute;left:0;right:0;bottom:0;height:230px;background:#ede8dd;clip-path:polygon(0 26%,52% 4%,100% 17%,100% 100%,0 100%);border-top:1px solid #c3b8a8}.cm-arch-box:after{content:'';position:absolute;right:22%;bottom:0;width:127px;height:166px;border:14px solid var(--ink);border-bottom:0;opacity:.82}.cm-arch-stamp{position:absolute;bottom:22px;left:23px;font:11px 'DM Mono',monospace;color:var(--muted);letter-spacing:.07em}.cm-vertical-note{position:absolute;right:17px;top:21px;writing-mode:vertical-rl;font:10px 'DM Mono',monospace;color:#6a5f54;letter-spacing:.11em}
+        .cm-proof{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);padding:27px 0}.cm-proof-item{padding:0 31px;border-right:1px solid var(--line)}.cm-proof-item:first-child{padding-left:0}.cm-proof-item:last-child{border:0}.cm-proof b{font:600 28px 'Playfair Display',serif}.cm-proof span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+        .cm-section{padding:104px 0}.cm-section-head{display:flex;justify-content:space-between;align-items:end;gap:25px;margin-bottom:39px}.cm-section h2{font:600 clamp(35px,4vw,53px)/1.04 'Playfair Display',serif;letter-spacing:-.05em;margin:12px 0 0}.cm-section-intro{color:var(--muted);line-height:1.6;max-width:330px;font-size:14px}
+        .cm-estimator{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);background:var(--cream)}.cm-controls{padding:40px 45px}.cm-control-row{display:flex;justify-content:space-between;align-items:end;margin-bottom:15px}.cm-control-label{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}.cm-area{font:600 34px 'Playfair Display',serif;color:var(--clay)}.cm-range{width:100%;accent-color:var(--clay);margin:12px 0 28px}.cm-range-label{display:flex;justify-content:space-between;color:#a39a8c;font:10px 'DM Mono',monospace}.cm-finish{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.cm-finish button{text-align:left;border:1px solid var(--line);padding:14px 10px;background:transparent;color:var(--muted);font-size:12px}.cm-finish button.active{border-color:var(--clay);background:#f6e8df;color:var(--clay-dark)}.cm-finish strong{display:block;font-size:13px;margin-bottom:4px;color:inherit}.cm-estimate{background:var(--sage);padding:43px;color:#f7f3eb;position:relative;overflow:hidden}.cm-estimate:after{content:'∿';font:290px/1 'Playfair Display',serif;color:rgba(255,255,255,.08);position:absolute;right:-5px;bottom:-88px}.cm-estimate small{font:10px 'DM Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:#dbe0d8}.cm-estimate h3{font:600 62px/1 'Playfair Display',serif;margin:37px 0 7px;letter-spacing:-.06em}.cm-estimate p{color:#d6ded4;font-size:13px;max-width:230px;line-height:1.5}.cm-estimate-foot{position:absolute;bottom:29px;left:43px;font:10px 'DM Mono',monospace;color:#d6ded4}
+        .cm-catalog{background:#e7e0d5;margin:0 calc((1240px - 100vw)/2);padding-left:max(34px,calc((100vw - 1172px)/2));padding-right:max(34px,calc((100vw - 1172px)/2))}.cm-catalog .cm-section-head{padding-top:0}.cm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:17px}.cm-card{background:var(--cream);border:1px solid var(--line)}.cm-card-art{height:235px;position:relative;overflow:hidden}.cm-card-art:before{content:'';position:absolute;inset:0;background:linear-gradient(150deg,transparent 47%,rgba(41,37,33,.3) 48% 49%,transparent 50%),linear-gradient(90deg,transparent 47%,rgba(41,37,33,.25) 48% 49%,transparent 50%)}.cm-card-art:after{content:'';position:absolute;left:18%;right:18%;bottom:-30px;height:145px;border:11px solid rgba(41,37,33,.72);border-bottom:0}.cm-card-art.sand{background:#c6b6a0}.cm-card-art.clay{background:#c48167}.cm-card-art.sage{background:#aeb7a5}.cm-card-no{position:absolute;top:15px;left:17px;font:10px 'DM Mono',monospace;color:rgba(41,37,33,.7)}.cm-card-body{padding:20px}.cm-card h3{font:600 26px 'Playfair Display',serif;margin:0 0 5px}.cm-card-place{color:var(--muted);font-size:12px}.cm-meta{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;gap:22px;margin:19px 0;padding:12px 0;color:var(--muted);font:11px 'DM Mono',monospace}.cm-card-foot{display:flex;justify-content:space-between;align-items:center}.cm-price{font-size:13px;font-weight:600}.cm-arrow{border:0;background:none;color:var(--clay);padding:0}.cm-final{padding:115px 0;text-align:center}.cm-final h2{font-size:clamp(39px,5vw,66px);max-width:700px;margin:14px auto 19px}.cm-final p{color:var(--muted);max-width:470px;margin:auto;line-height:1.6}.cm-tabs{display:flex;justify-content:center;gap:10px;margin:29px 0 20px}.cm-tabs button{border:1px solid var(--line);background:transparent;padding:10px 14px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.cm-tabs button.active{background:var(--ink);color:var(--cream);border-color:var(--ink)}.cm-notice{color:var(--sage);font-size:12px;margin-top:17px}.cm-footer{border-top:1px solid var(--line);padding:25px 0;color:var(--muted);font:10px 'DM Mono',monospace;display:flex;justify-content:space-between}.cm-footer a{color:inherit;text-decoration:none;margin-left:19px}
+        @media(max-width:760px){.cm-inner{padding:0 20px}.cm-links,.cm-nav-actions{display:none}.cm-mobile-toggle{display:block}.cm-nav{height:69px}.cm-hero{padding:65px 0 71px;display:block}.cm-hero h1{font-size:58px}.cm-hero-copy{font-size:15px}.cm-architectural{margin-top:53px;height:330px}.cm-proof{grid-template-columns:1fr;padding:0}.cm-proof-item{border-right:0;border-bottom:1px solid var(--line);padding:19px 0!important}.cm-proof-item:last-child{border-bottom:0}.cm-section{padding:76px 0}.cm-section-head{display:block}.cm-section-intro{margin-top:18px}.cm-estimator{display:block}.cm-controls{padding:28px 22px}.cm-estimate{min-height:300px;padding:30px 22px}.cm-estimate h3{font-size:53px;margin-top:30px}.cm-estimate-foot{left:22px}.cm-catalog{margin:0 -20px;padding-left:20px;padding-right:20px}.cm-grid{display:flex;overflow:auto;margin-right:-20px;padding-right:20px}.cm-card{min-width:278px}.cm-final{padding:78px 0}.cm-footer{display:block;line-height:2.4}.cm-footer a{margin-left:0;margin-right:17px}.cm-hero-buttons{flex-wrap:wrap}}
+      `}</style>
+      <header className="cm-nav cm-inner">
+        <a className="cm-logo" href="#inicio" onClick={() => setNotice("")}><span className="cm-logo-mark">C</span> construMarket <span style={{ color: "var(--clay)", fontSize: 11 }}>CR</span></a>
+        <nav className="cm-links">
+          <button onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}>Catálogo</button>
+          <button onClick={() => document.getElementById("estimador")?.scrollIntoView({ behavior: "smooth" })}>Estimar proyecto</button>
+          <button onClick={() => document.getElementById("unirse")?.scrollIntoView({ behavior: "smooth" })}>Para profesionales</button>
+        </nav>
+        <div className="cm-nav-actions"><button className="cm-ghost" onClick={() => setNotice("El acceso estará disponible muy pronto.")}>Iniciar sesión</button><button className="cm-dark" onClick={() => document.getElementById("unirse")?.scrollIntoView({ behavior: "smooth" })}>Entrar a la lista</button></div>
+        <button className="cm-mobile-toggle" aria-label="Abrir menú" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
+        {menuOpen && <div style={{ position: "absolute", top: 68, left: 0, right: 0, background: "var(--cream)", borderBottom: "1px solid var(--line)", padding: 20, display: "grid", gap: 16, zIndex: 4 }}><button className="cm-outline" onClick={() => { setMenuOpen(false); document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" }); }}>Catálogo</button><button className="cm-dark" onClick={() => { setMenuOpen(false); document.getElementById("unirse")?.scrollIntoView({ behavior: "smooth" }); }}>Entrar a la lista</button></div>}
+      </header>
+
+      <main id="inicio">
+        <section className="cm-hero cm-inner">
+          <div><div className="cm-kicker">Diseños para vivir aquí</div><h1>Una casa que <em>empieza</em> con una buena decisión.</h1><p className="cm-hero-copy">Planos claros, números honestos y profesionales que conocen el suelo costarricense. Construir puede sentirse más sencillo.</p><div className="cm-hero-buttons"><button className="cm-primary" onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}>Ver diseños <ArrowUpRight size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /></button><button className="cm-outline" onClick={() => document.getElementById("estimador")?.scrollIntoView({ behavior: "smooth" })}>Calcular inversión</button></div></div>
+          <div className="cm-architectural"><div className="cm-sun" /><div className="cm-arch-box" /><span className="cm-vertical-note">ARQUITECTURA TROPICAL · 09°56'N</span><span className="cm-arch-stamp">CM / 2024 — COSTA RICA</span></div>
+        </section>
+        <section className="cm-proof cm-inner"><div className="cm-proof-item"><b>47</b><span>diseños en curaduría</span></div><div className="cm-proof-item"><b>08</b><span>provincias cubiertas</span></div><div className="cm-proof-item"><b>100%</b><span>profesionales verificados</span></div></section>
+
+        <section id="estimador" className="cm-section cm-inner"><div className="cm-section-head"><div><div className="cm-kicker">Antes de dar el primer paso</div><h2>Un número para empezar<br /><i>con los pies en la tierra.</i></h2></div><p className="cm-section-intro">Una estimación orientativa basada en rangos actuales de construcción en Costa Rica. Sin promesas infladas.</p></div>
+          <div className="cm-estimator"><div className="cm-controls"><div className="cm-control-row"><span className="cm-control-label">Área construida</span><span className="cm-area">{area} m²</span></div><input className="cm-range" type="range" min="40" max="500" step="5" value={area} onChange={(e) => setArea(Number(e.target.value))} /><div className="cm-range-label"><span>40 m²</span><span>500 m²</span></div><div style={{ marginTop: 40 }}><span className="cm-control-label">Nivel de acabados</span><div className="cm-finish">{(Object.keys(finishRates) as Finish[]).map((item) => <button key={item} className={finish === item ? "active" : ""} onClick={() => setFinish(item)}><strong>{item}</strong><span>${finishRates[item][0]}/m²</span></button>)}</div></div></div><div className="cm-estimate"><small>inversión estimada</small><h3>{money(low)} <span style={{ fontSize: 26, color: "#d6ded4" }}>—</span><br />{money(high)}</h3><p>Rango para obra y acabados. No incluye lote, permisos ni honorarios CFIA.</p><div className="cm-estimate-foot"><Calculator size={13} style={{ verticalAlign: "middle", marginRight: 7 }} />actualizado · mayo 2024</div></div></div>
+        </section>
+
+        <section id="catalogo" className="cm-section cm-catalog"><div className="cm-section-head"><div><div className="cm-kicker">Selección de la casa</div><h2>Diseños con algo<br /><i>que decir.</i></h2></div><p className="cm-section-intro">Tres maneras de habitar el paisaje. Cada plano está listo para conversar con su profesional.</p></div><div className="cm-grid">{plans.map((plan, i) => <article className="cm-card" key={plan.name}><div className={`cm-card-art ${plan.tone}`}><span className="cm-card-no">0{i + 1} / 03</span></div><div className="cm-card-body"><h3>{plan.name}</h3><div className="cm-card-place">{plan.place}</div><div className="cm-meta"><span><Ruler size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />{plan.size}</span><span><BedDouble size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />{plan.beds} hab.</span></div><div className="cm-card-foot"><span className="cm-price">{plan.price}</span><button className="cm-arrow" aria-label={`Ver ${plan.name}`} onClick={() => setNotice(`${plan.name} se añadirá a tu selección.`)}><ArrowUpRight size={20} /></button></div></div></article>)}</div></section>
+
+        <section id="unirse" className="cm-final cm-inner"><div className="cm-kicker" style={{ justifyContent: "center" }}>El próximo capítulo</div><h2>Construir se siente distinto cuando no lo haces a ciegas.</h2><p>Recibe acceso anticipado al catálogo completo, nuevas publicaciones y conversaciones con profesionales verificados.</p><div className="cm-tabs"><button className={intent === "buyer" ? "active" : ""} onClick={() => setIntent("buyer")}><House size={13} style={{ verticalAlign: "middle", marginRight: 6 }} />Quiero construir</button><button className={intent === "professional" ? "active" : ""} onClick={() => setIntent("professional")}><Compass size={13} style={{ verticalAlign: "middle", marginRight: 6 }} />Soy profesional</button></div><button className="cm-primary" onClick={() => setNotice(intent === "buyer" ? "Listo. Te avisaremos cuando abramos el catálogo." : "Recibimos tu interés. Te escribiremos para verificar tu perfil.")}>{intent === "buyer" ? "Avisarme cuando abran" : "Quiero publicar mis diseños"} <ArrowUpRight size={15} style={{ verticalAlign: "middle", marginLeft: 7 }} /></button>{notice && <div className="cm-notice"><Sparkles size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />{notice}</div>}</section>
+      </main>
+      <footer className="cm-footer cm-inner"><span>© 2024 CONSTRUMARKET CR · HECHO PARA CONSTRUIR BIEN</span><span><a href="#inicio"><Search size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />Explorar</a><a href="#unirse"><CircleUserRound size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />Contacto</a><a href="#estimador"><ChevronDown size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />Legal</a></span></footer>
+    </div>
+  );
+}

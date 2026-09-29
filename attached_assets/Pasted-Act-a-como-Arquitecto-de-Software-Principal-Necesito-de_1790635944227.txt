@@ -1,0 +1,59 @@
+Actúa como Arquitecto de Software Principal. Necesito desacoplar por completo este proyecto de Replit para migrarlo y reconstruirlo usando Cursor (IDE), Claude (asistente de lógica/arquitectura) y v0 (diseño de componentes UI). 
+
+Genera un archivo maestro exhaustivo en la raíz del proyecto llamado `SPEC_MIGRACION_COMPLETA.md`. No resumas ni dejes marcadores de posición ("TODO" o "..."). Debe incluir con precisión técnica quirúrgica las siguientes 6 secciones:
+
+---
+
+### SECCIÓN 1: ESPECIFICACIONES DE UI Y FRONTEND (Diseñado para v0)
+1. **Design System & Estilizado:**
+   - Framework UI base (Tailwind CSS, Shadcn UI, Radix, Lucide Icons, etc.).
+   - Tokens de diseño: paleta de colores (hexadecimales/HSL primarios, secundarios, fondos, bordes), tipografías, border-radius y espaciados estándar.
+2. **Catálogo de Vistas y Pantallas:**
+   - Lista detallada de cada vista/página de la aplicación (ej. Dashboard, Gestión de Obras, Módulos, Reportes, etc.).
+   - Layout y estructura visual de cada vista: qué componentes componen cada pantalla (Navbar, Sidebar, Tablas con filtros, Modales, Tarjetas de métricas, Formularios).
+3. **Especificación Componente por Componente para Prompts de v0:**
+   - Para cada componente complejo (formularios dinámicos, tablas interactivas, modales de creación): describir sus estados (loading, empty, error, success), inputs requeridos, validaciones y comportamiento visual para poder pedirle a v0 que lo genere de forma idéntica.
+
+---
+
+### SECCIÓN 2: BASE DE DATOS Y PERSISTENCIA (Para reconstrucción en Neon / Supabase / PostgreSQL estándar)
+1. **DDL SQL Completo y Ejecutable:**
+   - Código SQL puro y sin dependencias de Replit con todos los `CREATE TABLE`, tipos de datos nativos de Postgres, claves primarias (`UUID` o `SERIAL`), claves foráneas con reglas `ON DELETE / ON UPDATE`, restricciones `UNIQUE`, `CHECK` e índices.
+   - Definición de Enums personalizados (`CREATE TYPE ... AS ENUM`).
+2. **Esquema de ORM Actual:**
+   - Definición exacta de las tablas según el ORM utilizado en el proyecto (Drizzle schema, Prisma schema o TypeORM entities) incluyendo relaciones y tipos TypeScript exportados.
+3. **Datos Semilla (Seed Data):**
+   - Scripts `INSERT INTO` con los catálogos base, configuraciones por defecto o registros mínimos necesarios para que el sistema inicie completamente funcional desde el primer segundo.
+
+---
+
+### SECCIÓN 3: BACKEND, API CONTRACTS Y REGLAS DE NEGOCIO (Para Cursor y Claude)
+1. **Contrato de API REST / Endpoints:**
+   - Mapeo exhaustivo de cada endpoint: Método HTTP, ruta (`/api/...`), parámetros de URL, cuerpo de la petición (`Request Body` con esquema JSON de ejemplo) y respuesta esperada (`Response Body` con esquemas 200, 400, 401, 500).
+2. **Lógica y Reglas de Negocio:**
+   - Algoritmos clave, cálculos matemáticos, transacciones complejas o flujos de validación que ocurren en el servidor antes de guardar datos.
+   - Manejo de sesiones, autenticación y autorización (roles, permisos, headers requeridos).
+
+---
+
+### SECCIÓN 4: ÁRBOL DE PROYECTO Y MAPEO DE DEPENDENCIAS (Para Cursor)
+1. **Estructura de Archivos:**
+   - Árbol de directorios completo anotando la responsabilidad de cada archivo y carpeta (`/client`, `/server`, `/shared`, `/drizzle`, etc.).
+2. **Auditoría de Dependencias Propietarias de Replit:**
+   - Lista explícita de cualquier paquete o importación de Replit presente en el código (ej. `@replit/database`, `@replit/extensions`, vite plugins internos).
+   - Sustituto estándar recomendado para entorno Node / Vite / Express / Next.js en Cursor.
+
+---
+
+### SECCIÓN 5: CONFIGURACIÓN DE ENTORNO Y REPRODUCIBILIDAD LOCAL
+1. **Plantilla `.env.example`:**
+   - Lista completa de todas las variables de entorno que el proyecto lee (sin credenciales sensibles), con una descripción clara de qué servicio representa cada una y ejemplos de URLs locales (`DATABASE_URL`, `PORT`, `JWT_SECRET`, etc.).
+2. **Scripts de Ejecución:**
+   - Comandos exactos del `package.json` para instalación (`npm install`), generación de esquemas/migraciones (`db:push` / `migrate`), modo desarrollo (`npm run dev`) y compilación para producción (`npm run build`).
+
+---
+
+### SECCIÓN 6: CÓDIGO FUENTE DE LOS ESQUEMAS
+- Si el proyecto usa Drizzle o Prisma, pega el contenido íntegro y sin recortes de los archivos de definición de esquema (`schema.ts` o `schema.prisma`) al final del documento.
+
+Por favor, confirma una vez creado el archivo en la raíz del proyecto para proceder a descargarlo.

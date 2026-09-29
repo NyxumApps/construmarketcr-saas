@@ -1,0 +1,493 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.2.0
+  description: ConstruMarket CR marketplace pilot API
+servers:
+  - url: /api
+tags:
+  - name: health
+  - name: marketplace
+  - name: account
+  - name: admin
+  - name: storage
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [marketplace]
+      parameters:
+        - { in: query, name: type, schema: { type: string } }
+        - { in: query, name: style, schema: { type: string } }
+        - { in: query, name: maxM2, schema: { type: integer } }
+        - { in: query, name: bedrooms, schema: { type: integer } }
+      responses:
+        "200":
+          description: Published plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Plan" }
+    post:
+      operationId: createPlan
+      tags: [account]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanInput" }
+      responses:
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+  /plans/{id}:
+    get:
+      operationId: getPlan
+      tags: [marketplace]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Plan detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+    patch:
+      operationId: updatePlan
+      tags: [account]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanUpdate" }
+      responses:
+        "200":
+          description: Updated plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestPlanImageUploadUrl
+      tags: [storage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Signed direct-upload URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+  /storage/uploads/{token}:
+    put:
+      operationId: uploadPlanImage
+      tags: [storage]
+      parameters:
+        - { in: path, name: token, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+      responses:
+        "204":
+          description: Image persisted
+  /storage/objects/plan-images/{owner}/{id}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      parameters:
+        - { in: path, name: owner, required: true, schema: { type: string } }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Public optimized plan image
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+  /me:
+    get:
+      operationId: getMe
+      tags: [account]
+      responses:
+        "200":
+          description: Current local account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
+  /professional-profile:
+    get:
+      operationId: getProfessionalProfile
+      tags: [account]
+      responses:
+        "200":
+          description: Current professional profile
+          content:
+            application/json:
+              schema:
+                type: [object, "null"]
+                allOf:
+                  - { $ref: "#/components/schemas/ProfessionalProfile" }
+    post:
+      operationId: upsertProfessionalProfile
+      tags: [account]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalProfileInput" }
+      responses:
+        "200":
+          description: Saved professional profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+  /my-plans:
+    get:
+      operationId: listMyPlans
+      tags: [account]
+      responses:
+        "200":
+          description: Plans owned by current professional
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Plan" }
+  /plan-interests:
+    post:
+      operationId: createPlanInterest
+      tags: [marketplace]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanInterestInput" }
+      responses:
+        "201":
+          description: Interest registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanInterest" }
+  /validation-leads:
+    post:
+      operationId: createValidationLead
+      tags: [marketplace]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ValidationLeadInput" }
+      responses:
+        "201":
+          description: Lead registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationLead" }
+  /validation-summary:
+    get:
+      operationId: getValidationSummary
+      tags: [marketplace]
+      responses:
+        "200":
+          description: Public momentum
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationSummary" }
+  /admin/summary:
+    get:
+      operationId: getAdminSummary
+      tags: [admin]
+      responses:
+        "200":
+          description: Moderation summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSummary" }
+  /admin/professionals:
+    get:
+      operationId: listAdminProfessionals
+      tags: [admin]
+      responses:
+        "200":
+          description: Professional applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalProfile" }
+  /admin/professionals/{id}:
+    patch:
+      operationId: reviewProfessional
+      tags: [admin]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: Reviewed professional
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+  /admin/plans:
+    get:
+      operationId: listAdminPlans
+      tags: [admin]
+      responses:
+        "200":
+          description: All submitted plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Plan" }
+  /admin/plans/{id}:
+    patch:
+      operationId: reviewPlan
+      tags: [admin]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: Reviewed plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+  /admin/interests:
+    get:
+      operationId: listAdminInterests
+      tags: [admin]
+      responses:
+        "200":
+          description: Buyer interests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlanInterest" }
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    Account:
+      type: object
+      required: [id, clerkUserId, role]
+      properties:
+        id: { type: integer }
+        clerkUserId: { type: string }
+        role: { type: string, enum: [buyer, professional, admin] }
+    ProfessionalProfile:
+      type: object
+      required: [id, userId, name, email, phone, cfiaNumber, professionalType, province, bio, status, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        cfiaNumber: { type: string }
+        professionalType: { type: string }
+        province: { type: string }
+        bio: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        reviewNotes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    ProfessionalProfileInput:
+      type: object
+      required: [name, email, phone, cfiaNumber, professionalType, province, bio]
+      properties:
+        name: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        phone: { type: string, minLength: 8 }
+        cfiaNumber: { type: string, minLength: 3 }
+        professionalType: { type: string }
+        province: { type: string }
+        bio: { type: string, minLength: 20 }
+    Plan:
+      type: object
+      required: [id, professionalId, professionalName, title, slug, description, type, style, m2, bedrooms, bathrooms, floors, priceUsd, constructionMinUsd, constructionMaxUsd, province, imageUrl, images, status, createdAt]
+      properties:
+        id: { type: integer }
+        professionalId: { type: integer }
+        professionalName: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        type: { type: string }
+        style: { type: string }
+        m2: { type: integer }
+        bedrooms: { type: integer }
+        bathrooms: { type: integer }
+        floors: { type: integer }
+        priceUsd: { type: number }
+        constructionMinUsd: { type: number }
+        constructionMaxUsd: { type: number }
+        province: { type: string }
+        imageUrl: { type: string }
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/PlanImage" }
+        status: { type: string, enum: [draft, pending, published, rejected] }
+        reviewNotes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    PlanInput:
+      type: object
+      required: [title, description, type, style, m2, bedrooms, bathrooms, floors, priceUsd, constructionMinUsd, constructionMaxUsd, province, imageUrl]
+      properties:
+        title: { type: string, minLength: 3 }
+        description: { type: string, minLength: 20 }
+        type: { type: string }
+        style: { type: string }
+        m2: { type: integer, minimum: 20 }
+        bedrooms: { type: integer, minimum: 0 }
+        bathrooms: { type: integer, minimum: 0 }
+        floors: { type: integer, minimum: 1 }
+        priceUsd: { type: number, minimum: 1 }
+        constructionMinUsd: { type: number, minimum: 1 }
+        constructionMaxUsd: { type: number, minimum: 1 }
+        province: { type: string }
+        imageUrl: { type: string }
+        images:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/PlanImage" }
+        submitForReview: { type: boolean }
+    PlanUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 3 }
+        description: { type: string, minLength: 20 }
+        type: { type: string }
+        style: { type: string }
+        m2: { type: integer, minimum: 20 }
+        bedrooms: { type: integer, minimum: 0 }
+        bathrooms: { type: integer, minimum: 0 }
+        floors: { type: integer, minimum: 1 }
+        priceUsd: { type: number, minimum: 1 }
+        constructionMinUsd: { type: number, minimum: 1 }
+        constructionMaxUsd: { type: number, minimum: 1 }
+        province: { type: string }
+        imageUrl: { type: string }
+        images:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/PlanImage" }
+        submitForReview: { type: boolean }
+    PlanImage:
+      type: object
+      required: [originalPath, webPath, thumbnailPath, alt]
+      properties:
+        originalPath: { type: string, pattern: "^/objects/plan-images/" }
+        webPath: { type: string, pattern: "^/objects/plan-images/" }
+        thumbnailPath: { type: string, pattern: "^/objects/plan-images/" }
+        alt: { type: string, maxLength: 160 }
+        focalX: { type: number, minimum: 0, maximum: 100, default: 50, description: "Horizontal focal point percentage from the left edge; legacy images without a value are returned as 50" }
+        focalY: { type: number, minimum: 0, maximum: 100, default: 50, description: "Vertical focal point percentage from the top edge; legacy images without a value are returned as 50" }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 12582912 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    UploadUrlResponse:
+      type: object
+      required: [uploadUrl, objectPath, publicUrl]
+      properties:
+        uploadUrl: { type: string, description: "Same-origin upload endpoint; may be a relative URL" }
+        objectPath: { type: string }
+        publicUrl: { type: string, description: "Canonical same-origin URL used to display the object after it is attached to a plan" }
+    PlanInterestInput:
+      type: object
+      required: [planId, name, email, phone, province, message]
+      properties:
+        planId: { type: integer }
+        name: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        phone: { type: string }
+        province: { type: string }
+        message: { type: string, minLength: 5 }
+    PlanInterest:
+      allOf:
+        - { $ref: "#/components/schemas/PlanInterestInput" }
+        - type: object
+          required: [id, planTitle, status, createdAt]
+          properties:
+            id: { type: integer }
+            planTitle: { type: string }
+            status: { type: string }
+            createdAt: { type: string, format: date-time }
+    ReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, rejected, published] }
+        notes: { type: string }
+    ValidationLeadInput:
+      type: object
+      required: [name, email, audience]
+      properties:
+        name: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        phone: { type: string }
+        province: { type: string }
+        audience: { type: string, enum: [buyer, professional] }
+        cfiaNumber: { type: string }
+        interest: { type: string }
+    ValidationLead:
+      allOf:
+        - { $ref: "#/components/schemas/ValidationLeadInput" }
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: integer }
+            createdAt: { type: string, format: date-time }
+    ValidationSummary:
+      type: object
+      required: [interestedBuyers, interestedProfessionals, samplePlans]
+      properties:
+        interestedBuyers: { type: integer }
+        interestedProfessionals: { type: integer }
+        samplePlans: { type: integer }
+    AdminSummary:
+      type: object
+      required: [pendingProfessionals, pendingPlans, publishedPlans, totalInterests]
+      properties:
+        pendingProfessionals: { type: integer }
+        pendingPlans: { type: integer }
+        publishedPlans: { type: integer }
+        totalInterests: { type: integer }
