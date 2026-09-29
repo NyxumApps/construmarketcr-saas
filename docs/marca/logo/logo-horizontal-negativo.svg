@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 336 64" role="img" aria-label="ConstruMarket CR">
+  <g>
+    <rect width="64" height="64" rx="14" fill="#FBFAF8"/>
+    <path d="M13 31 32 15l19 16" fill="none" stroke="#17362B" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M19 33v16h26V33" fill="none" stroke="#17362B" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="27" y="36" width="10" height="13" rx="1.5" fill="#CC5933"/>
+  </g>
+  <text x="80" y="43" font-family="Outfit, 'DM Sans', system-ui, sans-serif" font-size="32" font-weight="600" letter-spacing="-0.6" fill="#FBFAF8">ConstruMarket<tspan fill="#E58B6A">CR</tspan></text>
+</svg>
