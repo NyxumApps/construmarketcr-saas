@@ -6,13 +6,14 @@ import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAppClerk } from '@/lib/app-auth';
-import { Building, BookOpenCheck, Settings, Home as HomeIcon } from 'lucide-react';
+import { Building, BookOpenCheck, Settings, Home as HomeIcon, ShoppingBag } from 'lucide-react';
+import { ErrorState } from '@/components/feedback/StatusMessage';
 
 export default function PortalIndex() {
   const [, setLocation] = useLocation();
   const { signOut } = useAppClerk();
   
-  const { data: me, isLoading: meLoading } = useGetMe();
+  const { data: me, isLoading: meLoading, error: meError, refetch, isRefetching } = useGetMe();
   const { data: profile, isLoading: profileLoading } = useGetProfessionalProfile();
 
   const isLoading = meLoading || profileLoading;
@@ -29,7 +30,14 @@ export default function PortalIndex() {
   }
 
   if (!me) {
-    return null; // Should be handled by route guards or Clerk
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-background">
+        <Navbar />
+        <main className="flex-1 container mx-auto px-4 py-12 max-w-xl">
+          <ErrorState error={meError} onRetry={() => void refetch()} isRetrying={isRefetching} />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -136,6 +144,22 @@ export default function PortalIndex() {
               </CardContent>
             </Card>
           )}
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-primary" />
+                Mis Compras
+              </CardTitle>
+              <CardDescription>Diseños adquiridos y cotizaciones</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-6">Revise los diseños que compró y solicite cotizaciones de materiales a proveedores de Costa Rica.</p>
+              <Button className="w-full" variant="outline" asChild>
+                <Link href="/portal/compras">Ver mis compras</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
       <Footer />

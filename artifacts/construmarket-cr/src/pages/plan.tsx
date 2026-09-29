@@ -1,6 +1,12 @@
 import React from 'react';
-import { useParams } from 'wouter';
-import { useGetPlan, useCreatePlanInterest } from '@workspace/api-client-react';
+import { Link, useLocation, useParams } from 'wouter';
+import {
+  useCreatePlanInterest,
+  useCreatePurchase,
+  useGetPlan,
+  useListMyPurchases,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +20,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Ruler, BedDouble, Bath, Layers, MapPin, Building, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { ErrorState } from '@/components/feedback/StatusMessage';
+import { useErrorToast } from '@/hooks/use-error-toast';
+import { useAppAuth } from '@/lib/app-auth';
+import { applyFieldErrors, errorStatus, shouldRetry } from '@/lib/errors';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -31,20 +52,50 @@ export default function PlanDetail() {
   const params = useParams();
   const id = Number(params.id);
   const { toast } = useToast();
+  const showError = useErrorToast();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const { isSignedIn } = useAppAuth();
 
   const {
     data: plan,
     error,
     isError,
     isLoading,
+    refetch,
+    isRefetching,
   } = useGetPlan(id, {
     query: {
       enabled: !!id,
       queryKey: ['/api/plans', id],
-      retry: (failureCount, queryError) => queryError.status !== 404 && failureCount < 2,
+      retry: shouldRetry,
     },
   });
   const createInterest = useCreatePlanInterest();
+  const createPurchase = useCreatePurchase();
+  const { data: purchases = [] } = useListMyPurchases({
+    query: { enabled: Boolean(isSignedIn), queryKey: ['/api/purchases'] },
+  });
+  const ownedPurchase = purchases.find(
+    (purchase) => purchase.planId === id && purchase.status === 'paid',
+  );
+
+  const handlePurchase = () => {
+    if (!plan) return;
+    createPurchase.mutate({ data: { planId: plan.id } }, {
+      onSuccess: (purchase) => {
+        void queryClient.invalidateQueries({ queryKey: ['/api/purchases'] });
+        toast({
+          title: '¡El diseño ya es suyo!',
+          description: purchase.testMode
+            ? 'Compra registrada en modo de prueba: no se realizó ningún cobro.'
+            : 'Ya puede cotizar los materiales con proveedores.',
+        });
+        setLocation(`/portal/compras/${purchase.id}`);
+      },
+      onError: showError,
+    });
+  };
 
   const form = useForm<z.infer<typeof interestSchema>>({
     resolver: zodResolver(interestSchema),
@@ -63,9 +114,7 @@ export default function PlanDetail() {
         toast({ title: '¡Solicitud enviada!', description: 'El profesional ha sido notificado y se contactará pronto.' });
         form.reset();
       },
-      onError: () => {
-        toast({ title: 'Error', description: 'No se pudo enviar la solicitud. Intente de nuevo.', variant: 'destructive' });
-      }
+      onError: (error) => applyFieldErrors(form, showError(error)),
     });
   };
 
@@ -82,7 +131,7 @@ export default function PlanDetail() {
     );
   }
 
-  if ((isError && error.status === 404) || (!isError && !plan)) {
+  if ((isError && errorStatus(error) === 404) || (!isError && !plan)) {
     return (
       <div className="min-h-[100dvh] flex flex-col bg-background">
         <Navbar />
@@ -102,10 +151,12 @@ export default function PlanDetail() {
       <div className="min-h-[100dvh] flex flex-col bg-background">
         <Navbar />
         <main className="flex-1 flex items-center justify-center px-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-display font-bold mb-2">No se pudo cargar el diseño</h1>
-            <p className="text-muted-foreground">Intente de nuevo en unos momentos.</p>
-          </div>
+          <ErrorState
+            className="w-full max-w-xl"
+            error={error}
+            onRetry={() => void refetch()}
+            isRetrying={isRefetching}
+          />
         </main>
         <Footer />
       </div>
@@ -209,6 +260,45 @@ export default function PlanDetail() {
                   <p className="text-2xl font-display font-bold text-secondary">
                     {formatCurrency(plan.priceUsd)}
                   </p>
+                  <div className="mt-5">
+                    {ownedPurchase ? (
+                      <Button variant="secondary" className="w-full h-12" asChild>
+                        <Link href={`/portal/compras/${ownedPurchase.id}`}>Ver mi compra y cotizar materiales</Link>
+                      </Button>
+                    ) : !isSignedIn ? (
+                      <Button variant="secondary" className="w-full h-12" asChild>
+                        <Link href="/sign-in">Ingresar para comprar</Link>
+                      </Button>
+                    ) : (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            className="w-full h-12 text-base"
+                            disabled={createPurchase.isPending}
+                            data-testid="buy-plan"
+                          >
+                            {createPurchase.isPending ? 'Procesando…' : 'Comprar planos'}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar compra</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Va a comprar los planos de «{plan.title}» por {formatCurrency(plan.priceUsd)}.
+                              Después podrá pedir cotizaciones de materiales a proveedores de Costa Rica.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Todavía no</AlertDialogCancel>
+                            <AlertDialogAction onClick={handlePurchase} data-testid="confirm-purchase">
+                              Confirmar compra
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
               </div>
 

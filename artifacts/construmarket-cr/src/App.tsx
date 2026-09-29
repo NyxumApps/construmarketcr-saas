@@ -6,6 +6,8 @@ import { shadcn } from '@clerk/themes';
 import { esES } from '@clerk/localizations';
 import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { ConnectionBanner } from '@/components/feedback/ConnectionBanner';
+import { shouldRetry } from '@/lib/errors';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -16,6 +18,8 @@ import PortalIndex from '@/pages/portal';
 import PortalProfesional from '@/pages/portal-profesional';
 import PortalPlanos from '@/pages/portal-planos';
 import AdminDashboard from '@/pages/admin';
+import PortalCompras from '@/pages/portal-compras';
+import PortalCompra from '@/pages/portal-compra';
 import { AppAuthProvider, AuthShow, getE2eUserId, useAppClerk } from '@/lib/app-auth';
 
 const queryClient = new QueryClient({
@@ -23,14 +27,16 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,
+      retry: shouldRetry,
     },
   },
 });
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const e2eMode = import.meta.env.VITE_E2E_MODE === 'true';
+const configuredClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkPubKey = configuredClerkKey
+  ? publishableKeyFromHost(window.location.hostname, configuredClerkKey)
+  : undefined;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -40,8 +46,21 @@ function stripBase(path: string): string {
     : path;
 }
 
-if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+function MissingConfiguration() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6">
+      <div className="max-w-lg text-center">
+        <h1 className="text-2xl font-display font-bold text-foreground">
+          Falta un paso de configuración
+        </h1>
+        <p className="mt-2 text-muted-foreground">
+          El inicio de sesión todavía no está conectado. Agregue la clave
+          publicable de Clerk en <code>VITE_CLERK_PUBLISHABLE_KEY</code> dentro
+          del archivo <code>.env</code> y reinicie la aplicación.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 const clerkAppearance = {
@@ -212,6 +231,12 @@ function Router() {
         <Route path="/portal/planos">
           <SignedInRoute><PortalPlanos /></SignedInRoute>
         </Route>
+        <Route path="/portal/compras">
+          <SignedInRoute><PortalCompras /></SignedInRoute>
+        </Route>
+        <Route path="/portal/compras/:id">
+          <SignedInRoute><PortalCompra /></SignedInRoute>
+        </Route>
         <Route path="/admin">
           <SignedInRoute><AdminDashboard /></SignedInRoute>
         </Route>
@@ -226,7 +251,7 @@ function ClerkProviderWithRoutes() {
 
   return (
     <AppAuthProvider
-      publishableKey={clerkPubKey}
+      publishableKey={clerkPubKey ?? ''}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
@@ -245,10 +270,12 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
+  if (!clerkPubKey && !e2eMode) return <MissingConfiguration />;
   return (
     <WouterRouter base={basePath}>
       <ClerkProviderWithRoutes />
       <Toaster />
+      <ConnectionBanner />
     </WouterRouter>
   );
 }

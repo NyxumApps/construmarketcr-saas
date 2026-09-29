@@ -236,6 +236,11 @@ try {
   // Las cuentas de prueba son sintéticas y no aparecen en la cola de administración.
   const queue = expectStatus(await request("/admin/quotes", { userId: adminUserId }), 200, "Cola de cotizaciones");
   assert.ok(!queue.some(({ id }) => id === manualQuote.id));
+  const fullQueue = expectStatus(
+    await request("/admin/quotes?includeSynthetic=true", { userId: adminUserId }),
+    200, "Cola de cotizaciones con datos de prueba",
+  );
+  assert.ok(fullQueue.some(({ id }) => id === manualQuote.id));
 
   expectError(
     await request(`/admin/quotes/${manualQuote.id}`, { userId: adminUserId, method: "PATCH", body: { status: "received" } }),

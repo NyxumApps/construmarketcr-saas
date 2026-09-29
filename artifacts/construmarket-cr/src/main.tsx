@@ -18,7 +18,7 @@ if (import.meta.env.VITE_E2E_MODE === 'true') {
       (
         relativeUrl === '/api/plans' ||
         relativeUrl.startsWith('/api/plans?') ||
-        /^\/api\/admin\/(professionals|plans|interests)(?:\?|$)/.test(relativeUrl)
+        /^\/api\/admin\/(professionals|plans|interests|quotes)(?:\?|$)/.test(relativeUrl)
       )
     ) {
       const parsed = new URL(url, window.location.origin);

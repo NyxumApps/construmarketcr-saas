@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Ruler, BedDouble, Bath } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { ErrorState } from '@/components/feedback/StatusMessage';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -19,7 +20,7 @@ export default function Catalogo() {
   const [styleFilter, setStyleFilter] = useState<string>('all');
   const [provinceFilter, setProvinceFilter] = useState<string>('all');
   
-  const { data: plans = [], isLoading } = useListPlans({
+  const { data: plans = [], isLoading, error, refetch, isRefetching } = useListPlans({
     style: styleFilter !== 'all' ? styleFilter : undefined,
   });
 
@@ -95,6 +96,13 @@ export default function Catalogo() {
                 </CardContent>
               </Card>
             ))
+          ) : error ? (
+            <ErrorState
+              className="col-span-full"
+              error={error}
+              onRetry={() => void refetch()}
+              isRetrying={isRefetching}
+            />
           ) : filteredPlans.length > 0 ? (
             filteredPlans.map((plan) => (
               <Card key={plan.id} data-testid="public-plan-card" className="overflow-hidden border group hover:shadow-xl transition-all duration-300 flex flex-col">

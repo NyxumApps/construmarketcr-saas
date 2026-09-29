@@ -10,6 +10,8 @@ const root = new URL('../../..', import.meta.url);
 const unique = randomUUID().slice(0, 8);
 const adminId = `browser_admin_${unique}`;
 const professionalId = `browser_professional_${unique}`;
+const buyerId = `browser_buyer_${unique}`;
+const supplierName = `Ferretería navegador ${unique}`;
 const title = `Casa navegador ${unique}`;
 const professionalName = `Arq. Navegador ${unique}`;
 const professionalEmail = `professional-${unique}@example.test`;
@@ -115,8 +117,17 @@ async function checkNarrowLayout(page, label, controls) {
   }
 }
 
+// Una lista desplegable que sigue abierta atrapa el foco del teclado.
+async function closeOpenListbox(page) {
+  const listbox = page.getByRole('listbox');
+  if (await listbox.count() === 0) return;
+  await page.keyboard.press('Escape');
+  await expect(listbox).toHaveCount(0);
+}
+
 async function tabTo(page, locator, options = {}) {
   const { backwards = false, maxTabs = 80 } = options;
+  await closeOpenListbox(page);
   const unfocusedStyle = await locator.evaluate((element) => {
     const style = getComputedStyle(element);
     return { outline: style.outline, boxShadow: style.boxShadow };
@@ -149,6 +160,7 @@ async function tabTo(page, locator, options = {}) {
 }
 
 async function tabToUpload(page, input, visibleLabel) {
+  await closeOpenListbox(page);
   const unfocusedOutline = await visibleLabel.evaluate((element) => getComputedStyle(element).outline);
   for (let count = 0; count < 80; count += 1) {
     await page.keyboard.press('Tab');
@@ -321,6 +333,8 @@ try {
       adminPage.getByRole('tab', { name: /Profesionales/ }),
       adminPage.getByRole('tab', { name: /Diseños/ }),
       adminPage.getByRole('tab', { name: 'Leads' }),
+      adminPage.getByRole('tab', { name: 'Proveedores' }),
+      adminPage.getByRole('tab', { name: 'Cotizaciones' }),
     ]);
     const plansSummaryTab = adminPage.getByRole('tab', { name: 'Resumen' });
     const plansTab = adminPage.getByRole('tab', { name: /Diseños/ });
@@ -380,12 +394,112 @@ try {
     const leadsSummaryTab = adminPage.getByRole('tab', { name: 'Resumen' });
     const leadsTab = adminPage.getByRole('tab', { name: 'Leads' });
     await tabTo(adminPage, leadsSummaryTab);
+    // El foco entre pestañas se mueve de forma asíncrona: se espera cada paso.
+    await adminPage.keyboard.press('ArrowLeft');
+    await expect(adminPage.getByRole('tab', { name: 'Cotizaciones' })).toBeFocused();
+    await adminPage.keyboard.press('ArrowLeft');
+    await expect(adminPage.getByRole('tab', { name: 'Proveedores' })).toBeFocused();
     await adminPage.keyboard.press('ArrowLeft');
     await expect(leadsTab).toBeFocused();
     await expect(leadsTab).toHaveAttribute('aria-selected', 'true');
     await expect(adminPage.getByText(buyerEmail)).toBeVisible();
 
-    await Promise.all([professional.context.close(), admin.context.close(), publicContext.close()]);
+    // Un fallo del servicio se explica con claridad y permite reintentar sin recargar.
+    let failCatalog = true;
+    await publicPage.route('**/api/plans**', (route) =>
+      failCatalog
+        ? route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'interno', code: 'internal_error', requestId: 'ref-navegador' }),
+          })
+        : route.continue(),
+    );
+    await publicPage.goto(`${baseUrl}/catalogo`);
+    const retryCatalog = publicPage.getByRole('button', { name: 'Intentar de nuevo' });
+    await expect(publicPage.getByText('Tuvimos un problema de nuestro lado')).toBeVisible({ timeout: 20_000 });
+    await expect(publicPage.getByText('Referencia para soporte: ref-navegador')).toBeVisible();
+    await expect(publicPage.getByText('interno', { exact: true })).toHaveCount(0);
+    await checkNarrowLayout(publicPage, 'Estado de error del catálogo', [retryCatalog]);
+    failCatalog = false;
+    await retryCatalog.click();
+    await expect(publicPage.getByTestId('public-plan-card').filter({ hasText: title })).toBeVisible();
+
+    // Alta de un proveedor sin conexión automática.
+    await adminPage.getByRole('tab', { name: 'Proveedores' }).click();
+    await adminPage.getByLabel('Nombre', { exact: true }).fill(supplierName);
+    await adminPage.getByLabel('San José').check();
+    await adminPage.getByRole('button', { name: 'Agregar proveedor' }).click();
+    await expect(adminPage.getByText('Proveedor agregado', { exact: true })).toBeVisible();
+    await expect(adminPage.getByTestId('supplier-card').filter({ hasText: supplierName })).toBeVisible();
+
+    // Compra del diseño y cotización de materiales.
+    const buyer = await session(browser, baseUrl, buyerId);
+    const buyerPage = buyer.page;
+    await buyerPage.goto(publicPage.url().includes('/plan/') ? publicPage.url() : `${baseUrl}/catalogo`);
+    if (!buyerPage.url().includes('/plan/')) {
+      await buyerPage.getByTestId('public-plan-card').filter({ hasText: title }).getByRole('link').click();
+    }
+    await expect(buyerPage.getByRole('heading', { name: title })).toBeVisible();
+    const buyButton = buyerPage.getByTestId('buy-plan');
+    await checkNarrowLayout(buyerPage, 'Compra del diseño', [buyButton]);
+    await buyButton.click();
+    await expect(buyerPage.getByRole('alertdialog')).toContainText(title);
+    await buyerPage.getByTestId('confirm-purchase').click();
+    await expect(buyerPage).toHaveURL(/\/portal\/compras\/\d+$/);
+    await expect(buyerPage.getByText('no se realizó ningún cobro').first()).toBeVisible();
+    await expect(buyerPage.getByRole('cell', { name: 'Cemento de uso general' })).toBeVisible();
+    await expect(buyerPage.getByText('Aún no ha solicitado cotizaciones')).toBeVisible();
+
+    const requestQuotes = buyerPage.getByTestId('request-quotes');
+    await expect(requestQuotes).toBeDisabled();
+    await buyerPage.getByTestId('quote-province').click();
+    await buyerPage.getByRole('option', { name: 'San José' }).click();
+    await buyerPage.getByLabel('Proveedor de demostración').check();
+    await buyerPage.getByLabel(supplierName).check();
+    await checkNarrowLayout(buyerPage, 'Solicitud de cotización', [requestQuotes]);
+    await expect(requestQuotes).toHaveText('Cotizar con 2 proveedores');
+    await requestQuotes.click();
+    await expect(buyerPage.getByText('Solicitud enviada', { exact: true })).toBeVisible();
+    const quoteCards = buyerPage.getByTestId('supplier-quote');
+    await expect(quoteCards).toHaveCount(2);
+    const demoQuote = quoteCards.filter({ hasText: 'Proveedor de demostración' });
+    await expect(demoQuote.getByText('Recomendada')).toBeVisible();
+    await expect(demoQuote.getByText(/₡/)).toBeVisible();
+    await expect(quoteCards.filter({ hasText: supplierName })).toContainText('Le avisaremos aquí');
+    await checkNarrowLayout(buyerPage, 'Comparación de cotizaciones', [demoQuote]);
+
+    // Administración registra la respuesta del proveedor y el comprador la ve.
+    await adminPage.getByRole('tab', { name: 'Cotizaciones' }).click();
+    const pendingQuote = adminPage.getByTestId('admin-quote-card').filter({ hasText: supplierName });
+    await expect(pendingQuote).toBeVisible();
+    await pendingQuote.getByRole('button', { name: 'Registrar cotización' }).click();
+    await expect(pendingQuote.getByText('Escriba el monto total en colones')).toBeVisible();
+    await pendingQuote.getByLabel('Total cotizado (₡)').fill('1000');
+    await pendingQuote.getByLabel('Días de entrega').fill('2');
+    await checkNarrowLayout(adminPage, 'Respuesta de cotización', [
+      pendingQuote.getByRole('button', { name: 'Registrar cotización' }),
+    ]);
+    await pendingQuote.getByRole('button', { name: 'Registrar cotización' }).click();
+    await expect(adminPage.getByText('Respuesta registrada', { exact: true })).toBeVisible();
+    await expect(pendingQuote).toHaveCount(0);
+
+    await buyerPage.reload();
+    const answered = buyerPage.getByTestId('supplier-quote').filter({ hasText: supplierName });
+    await expect(answered.getByText('Recomendada')).toBeVisible();
+    await expect(answered).toContainText('Entrega en 2 días');
+
+    await buyerPage.goto(`${baseUrl}/portal/compras`);
+    await expect(buyerPage.getByTestId('purchase-card').filter({ hasText: title })).toBeVisible();
+    await buyerPage.goto(`${baseUrl}/portal/compras/999999999`);
+    await expect(buyerPage.getByText('No encontramos esta compra')).toBeVisible();
+
+    await Promise.all([
+      professional.context.close(),
+      admin.context.close(),
+      publicContext.close(),
+      buyer.context.close(),
+    ]);
     process.stdout.write(
       `Recorrido móvil con teclado completado en ${mobileContext.viewport.width}px, con comprobaciones críticas a ${narrowViewport.width}px y datos únicos ${unique}.\n`,
     );

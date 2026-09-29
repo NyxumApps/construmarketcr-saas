@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useErrorToast } from '@/hooks/use-error-toast';
+import { applyFieldErrors } from '@/lib/errors';
 import { ChevronDown, ChevronLeft, ChevronUp, ImagePlus, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
@@ -113,6 +115,7 @@ async function uploadBlob(blob: Blob, name: string): Promise<string> {
 
 export default function PortalPlanos() {
   const { toast } = useToast();
+  const showError = useErrorToast();
   const queryClient = useQueryClient();
   const { data: me } = useGetMe();
   const { data: profile, isLoading: isProfileLoading } = useGetProfessionalProfile();
@@ -251,7 +254,7 @@ export default function PortalPlanos() {
           queryClient.invalidateQueries({ queryKey: ['/api/my-plans'] });
           setIsFormOpen(false);
         },
-        onError: () => toast({ title: 'Error al actualizar', variant: 'destructive' })
+        onError: (error) => applyFieldErrors(form, showError(error)),
       });
     } else {
       createPlan.mutate({ data: {
@@ -264,7 +267,7 @@ export default function PortalPlanos() {
           queryClient.invalidateQueries({ queryKey: ['/api/my-plans'] });
           setIsFormOpen(false);
         },
-        onError: () => toast({ title: 'Error al crear', variant: 'destructive' })
+        onError: (error) => applyFieldErrors(form, showError(error)),
       });
     }
   };

@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useErrorToast } from '@/hooks/use-error-toast';
+import { applyFieldErrors } from '@/lib/errors';
 import { ChevronLeft, InfoIcon } from 'lucide-react';
 import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,6 +30,7 @@ const profileSchema = z.object({
 
 export default function PortalProfesional() {
   const { toast } = useToast();
+  const showError = useErrorToast();
   const queryClient = useQueryClient();
   const { data: profile, isLoading } = useGetProfessionalProfile();
   const upsertProfile = useUpsertProfessionalProfile();
@@ -61,9 +64,7 @@ export default function PortalProfesional() {
         queryClient.setQueryData(['/api/professional-profile'], data);
         queryClient.invalidateQueries({ queryKey: ['/api/me'] });
       },
-      onError: () => {
-        toast({ title: 'Error', description: 'Ocurrió un problema al guardar su perfil.', variant: 'destructive' });
-      }
+      onError: (error) => applyFieldErrors(form, showError(error)),
     });
   };
 

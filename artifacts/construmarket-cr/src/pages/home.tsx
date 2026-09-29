@@ -8,6 +8,9 @@ import {
   useGetValidationSummary,
   ValidationLeadInputAudience 
 } from '@workspace/api-client-react';
+import { ErrorState } from '@/components/feedback/StatusMessage';
+import { useErrorToast } from '@/hooks/use-error-toast';
+import { applyFieldErrors } from '@/lib/errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,12 +57,19 @@ const professionalSchema = z.object({
 
 export default function Home() {
   const { toast } = useToast();
+  const showError = useErrorToast();
   const [, setLocation] = useLocation();
   const { isSignedIn } = useAppAuth();
   
   // API Hooks
   const { data: summary, isLoading: isLoadingSummary } = useGetValidationSummary();
-  const { data: plans = [], isLoading: isLoadingPlans } = useListPlans();
+  const {
+    data: plans = [],
+    isLoading: isLoadingPlans,
+    error: plansError,
+    refetch: refetchPlans,
+    isRefetching: isRefetchingPlans,
+  } = useListPlans();
   const createLead = useCreateValidationLead();
 
   // Local State
@@ -89,9 +99,7 @@ export default function Home() {
         toast({ title: '¡Registro exitoso!', description: 'Le notificaremos cuando la plataforma esté disponible.' });
         buyerForm.reset();
       },
-      onError: () => {
-        toast({ title: 'Error', description: 'Ocurrió un problema, intente de nuevo.', variant: 'destructive' });
-      }
+      onError: (error) => applyFieldErrors(buyerForm, showError(error)),
     });
   };
 
@@ -107,9 +115,7 @@ export default function Home() {
         proForm.reset();
         setLocation('/sign-up?intent=professional');
       },
-      onError: () => {
-        toast({ title: 'Error', description: 'Ocurrió un problema, intente de nuevo.', variant: 'destructive' });
-      }
+      onError: (error) => applyFieldErrors(proForm, showError(error)),
     });
   };
 
@@ -299,6 +305,13 @@ export default function Home() {
                   </CardContent>
                 </Card>
               ))
+            ) : plansError ? (
+              <ErrorState
+                className="col-span-full"
+                error={plansError}
+                onRetry={() => void refetchPlans()}
+                isRetrying={isRefetchingPlans}
+              />
             ) : plans.length > 0 ? (
               plans.slice(0, 3).map((plan, idx) => (
                 <Card key={plan.id} className="overflow-hidden border group hover:shadow-xl transition-all duration-300">

@@ -15,12 +15,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useErrorToast } from '@/hooks/use-error-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { Users, Building, ShieldCheck, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { SuppliersTab } from '@/components/admin/SuppliersTab';
+import { QuotesTab } from '@/components/admin/QuotesTab';
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const showError = useErrorToast();
   const queryClient = useQueryClient();
   const { data: me } = useGetMe();
   const [activeTab, setActiveTab] = useState('summary');
@@ -79,7 +83,8 @@ export default function AdminDashboard() {
         toast({ title: 'Profesional actualizado' });
         queryClient.invalidateQueries({ queryKey: ['/api/admin/professionals'] });
         queryClient.invalidateQueries({ queryKey: ['/api/admin/summary'] });
-      }
+      },
+      onError: showError,
     });
   };
 
@@ -89,7 +94,8 @@ export default function AdminDashboard() {
         toast({ title: 'Plano actualizado' });
         queryClient.invalidateQueries({ queryKey: ['/api/admin/plans'] });
         queryClient.invalidateQueries({ queryKey: ['/api/admin/summary'] });
-      }
+      },
+      onError: showError,
     });
   };
 
@@ -115,7 +121,7 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full min-w-0">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 mb-8 bg-muted/50 p-1 rounded-xl sm:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 mb-8 bg-muted/50 p-1 rounded-xl sm:grid-cols-3 lg:grid-cols-6">
             <TabsTrigger value="summary" className="min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm">Resumen</TabsTrigger>
             <TabsTrigger value="professionals" className="min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm">
               Profesionales {summary?.pendingProfessionals ? `(${summary.pendingProfessionals})` : ''}
@@ -131,6 +137,8 @@ export default function AdminDashboard() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="suppliers" className="min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm">Proveedores</TabsTrigger>
+            <TabsTrigger value="quotes" className="min-w-0 whitespace-normal px-2 py-2 text-xs sm:text-sm">Cotizaciones</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary" className="space-y-6">
@@ -301,6 +309,14 @@ export default function AdminDashboard() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="suppliers">
+            <SuppliersTab />
+          </TabsContent>
+
+          <TabsContent value="quotes">
+            <QuotesTab active={activeTab === 'quotes'} />
           </TabsContent>
         </Tabs>
       </main>

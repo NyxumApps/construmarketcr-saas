@@ -443,9 +443,11 @@ async function adminQuoteDtos(
   }));
 }
 
-router.get("/admin/quotes", requireAccount, requireAdmin, async (_req, res): Promise<void> => {
+router.get("/admin/quotes", requireAccount, requireAdmin, async (req, res): Promise<void> => {
   res.json(ListAdminQuotesResponse.parse(
-    await adminQuoteDtos(eq(supplierQuotesTable.status, "requested")),
+    await adminQuoteDtos(eq(supplierQuotesTable.status, "requested"), {
+      includeSynthetic: req.query.includeSynthetic === "true",
+    }),
   ));
 });
 
